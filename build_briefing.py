@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 
@@ -13,8 +13,8 @@ REQUEST_INTERVAL_SECONDS = 6.2
 MAX_RECORDS = 50
 
 COMMON_DRONE_TERMS = [
-    "drone", "drones", "uav", "uas", "unmanned", "vtol",
-    "reconnaissance", "surveillance", "aerial", "uavs"
+    "drone", "drones", "uav", "uavs", "uas", "unmanned", "vtol",
+    "aerial", "surveillance", "reconnaissance"
 ]
 
 @dataclass
@@ -32,32 +32,29 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip().lower()
 
 def quote_term(term: str) -> str:
-    term = term.strip()
+    term = (term or "").strip()
     if not term:
-        return term
-    return f'"{term}"' if " " in term else term
+        return ""
+    # Quote anything that is not a simple alphanumeric word, which avoids
+    # GDELT's "illegal character" issues for dashed product names like S-100.
+    if re.search(r"[^A-Za-z0-9 ]", term):
+        return f'"{term}"'
+    if " " in term:
+        return f'"{term}"'
+    return term
 
 def text_has_any(text: str, terms: List[str]) -> bool:
     t = normalize(text)
-    return any(normalize(term) in t for term in terms)
+    return any(normalize(term) in t for term in terms if term)
 
 def make_query(cfg: Dict[str, Any], strict: bool = True) -> str:
-    aliases = [
-        quote_term(t)
-        for t in cfg.get("aliases", [])
-        if t.strip()
-    ]
-
-    drone_terms = [
-        quote_term(t)
-        for t in (COMMON_DRONE_TERMS + cfg.get("priority_terms", []))
-        if t.strip()
-    ]
-
-    alias_expr = " OR ".join(aliases)
-    drone_expr = " OR ".join(drone_terms)
+    aliases = [quote_term(t) for t in cfg.get("aliases", []) if t and t.strip()]
+    drone_terms = [quote_term(t) for t in COMMON_DRONE_TERMS if t]
+    alias_expr = " OR ".join([t for t in aliases if t])
+    drone_expr = " OR ".join([t for t in drone_terms if t])
 
     if strict:
+        # Only OR groups are wrapped. Do not wrap the entire AND expression.
         return f"({alias_expr}) AND ({drone_expr})"
 
     return f"({alias_expr})"
@@ -95,6 +92,7 @@ def fetch_json(session: requests.Session, query: str) -> Dict[str, Any]:
         "maxrecords": str(MAX_RECORDS),
     }
     response = rate_limited_get(session, BASE_URL, params)
+
     try:
         return response.json()
     except Exception as exc:
@@ -104,7 +102,6 @@ def fetch_json(session: requests.Session, query: str) -> Dict[str, Any]:
 def extract_items(payload: Any) -> List[Dict[str, Any]]:
     if isinstance(payload, list):
         return payload
-
     if not isinstance(payload, dict):
         return []
 
@@ -120,7 +117,6 @@ def extract_items(payload: Any) -> List[Dict[str, Any]]:
     for candidate in candidates:
         if isinstance(candidate, list):
             return candidate
-
     return []
 
 def extract_field(item: Dict[str, Any], keys: List[str]) -> str:
@@ -131,7 +127,7 @@ def extract_field(item: Dict[str, Any], keys: List[str]) -> str:
     return ""
 
 def passes_local_filter(cfg: Dict[str, Any], title: str, summary: str) -> bool:
-    text = f"{title} {summary}".lower()
+    text = f"{title} {summary}"
 
     alias_hit = text_has_any(text, cfg.get("aliases", []))
     priority_hit = text_has_any(text, cfg.get("priority_terms", []))
@@ -176,15 +172,17 @@ def score_article(cfg: Dict[str, Any], title: str, summary: str, published: str)
 def dedupe_articles(items: List[Article]) -> List[Article]:
     seen = set()
     deduped = []
-    for a in sorted(items, key=lambda x: x.score, reverse=True):
-        key = normalize(a.link or a.title)
+    for article in sorted(items, key=lambda x: x.score, reverse=True):
+        key = normalize(article.link or article.title)
         if key in seen:
             continue
         seen.add(key)
-        deduped.append(a)
+        deduped.append(article)
     return deduped
 
 def fetch_company_articles(session: requests.Session, cfg: Dict[str, Any]) -> List[Article]:
+    # Use the safer query first: aliases + generic drone terms only.
+    # Keep product codes and other potentially tricky terms for local filtering.
     strict_query = make_query(cfg, strict=True)
     fallback_query = make_query(cfg, strict=False)
 
@@ -249,7 +247,8 @@ def make_briefing(articles: List[Article]) -> str:
     lines.append("")
 
     for a in top_overall:
-        lines.append(f"- **{a.company}**: {a.title} ({a.published[:10] if a.published else 'date unavailable'})")
+        date_part = a.published[:10] if a.published else "date unavailable"
+        lines.append(f"- **{a.company}**: {a.title} ({date_part})")
         lines.append(f"  {a.link}")
 
     lines.append("")
@@ -259,7 +258,8 @@ def make_briefing(articles: List[Article]) -> str:
     for company in sorted(grouped.keys()):
         lines.append(f"### {company}")
         for a in sorted(grouped[company], key=lambda x: x.score, reverse=True)[:2]:
-            lines.append(f"- {a.title} ({a.published[:10] if a.published else 'date unavailable'})")
+            date_part = a.published[:10] if a.published else "date unavailable"
+            lines.append(f"- {a.title} ({date_part})")
             lines.append(f"  {a.link}")
         lines.append("")
 

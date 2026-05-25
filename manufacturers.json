@@ -3,13 +3,13 @@
     "name": "Quantum Systems",
     "aliases": ["Quantum Systems", "Quantum-Systems", "Quantum Systems GmbH"],
     "priority_terms": ["Vector", "Trinity"],
-    "exclude_terms": ["quantum computing", "qubit", "semiconductor"]
+    "exclude_terms": ["quantum computing", "qubit", "semiconductor", "physics", "superconducting"]
   },
   {
     "name": "Parrot",
     "aliases": ["Parrot", "Parrot drones"],
     "priority_terms": ["ANAFI", "ANAFI USA", "ANAFI UKR"],
-    "exclude_terms": ["bird", "birds", "aviary"]
+    "exclude_terms": ["bird", "birds", "aviary", "ornithology"]
   },
   {
     "name": "TEKEVER",

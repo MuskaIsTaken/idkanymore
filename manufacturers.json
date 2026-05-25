@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Quantum Systems",
+    "aliases": ["Quantum Systems", "Quantum-Systems", "Quantum Systems GmbH"],
+    "priority_terms": ["Vector", "Trinity"],
+    "exclude_terms": ["quantum computing", "qubit", "semiconductor"]
+  },
+  {
+    "name": "Parrot",
+    "aliases": ["Parrot", "Parrot drones"],
+    "priority_terms": ["ANAFI", "ANAFI USA", "ANAFI UKR"],
+    "exclude_terms": ["bird", "birds", "aviary"]
+  },
+  {
+    "name": "TEKEVER",
+    "aliases": ["TEKEVER", "Tekever"],
+    "priority_terms": ["AR3", "AR5"],
+    "exclude_terms": []
+  },
+  {
+    "name": "Schiebel",
+    "aliases": ["Schiebel"],
+    "priority_terms": ["CAMCOPTER", "S-100"],
+    "exclude_terms": []
+  },
+  {
+    "name": "Delair",
+    "aliases": ["Delair"],
+    "priority_terms": ["UX11", "DT61", "DT46"],
+    "exclude_terms": []
+  },
+  {
+    "name": "Wingtra",
+    "aliases": ["Wingtra"],
+    "priority_terms": ["WingtraOne", "WingtraRAY"],
+    "exclude_terms": []
+  },
+  {
+    "name": "Microdrones",
+    "aliases": ["Microdrones", "microdrones"],
+    "priority_terms": ["mdLiDAR", "md4-1000", "md4-3000"],
+    "exclude_terms": []
+  },
+  {
+    "name": "Flyability",
+    "aliases": ["Flyability"],
+    "priority_terms": ["Elios 3"],
+    "exclude_terms": []
+  },
+  {
+    "name": "DRONE VOLT",
+    "aliases": ["DRONE VOLT", "Drone Volt"],
+    "priority_terms": ["KOBRA", "Hercules 20"],
+    "exclude_terms": []
+  },
+  {
+    "name": "Novadem",
+    "aliases": ["Novadem"],
+    "priority_terms": ["NX70"],
+    "exclude_terms": []
+  }
+]

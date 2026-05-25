@@ -42,18 +42,24 @@ def text_has_any(text: str, terms: List[str]) -> bool:
     return any(normalize(term) in t for term in terms)
 
 def make_query(cfg: Dict[str, Any], strict: bool = True) -> str:
-    aliases = cfg.get("aliases", [])
-    priority_terms = cfg.get("priority_terms", [])
+    aliases = [
+        quote_term(t)
+        for t in cfg.get("aliases", [])
+        if t.strip()
+    ]
 
-    alias_expr = " OR ".join(quote_term(t) for t in aliases if t.strip())
-    drone_expr = " OR ".join(quote_term(t) for t in COMMON_DRONE_TERMS if t.strip())
-    priority_expr = " OR ".join(quote_term(t) for t in priority_terms if t.strip())
+    drone_terms = [
+        quote_term(t)
+        for t in (COMMON_DRONE_TERMS + cfg.get("priority_terms", []))
+        if t.strip()
+    ]
+
+    alias_expr = " OR ".join(aliases)
+    drone_expr = " OR ".join(drone_terms)
 
     if strict:
-        # Strongly anchored on the company + drone vocabulary to avoid irrelevant results.
-        return f"(({alias_expr}) AND ({drone_expr} OR {priority_expr}))"
+        return f"({alias_expr}) AND ({drone_expr})"
 
-    # Relaxed fallback: just the company aliases. Local filtering still enforces drone relevance.
     return f"({alias_expr})"
 
 def rate_limited_get(session: requests.Session, url: str, params: Dict[str, Any], retries: int = 4) -> requests.Response:

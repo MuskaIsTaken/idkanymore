@@ -14,7 +14,7 @@ MAX_RECORDS = 50
 
 COMMON_DRONE_TERMS = [
     "drone", "drones", "uav", "uavs", "uas", "unmanned", "vtol",
-    "aerial", "surveillance", "reconnaissance"
+    "aerial", "surveillance", "reconnaissance",
 ]
 
 @dataclass
@@ -28,38 +28,59 @@ class Article:
 
 _last_request_at = 0.0
 
+
 def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip().lower()
+
 
 def quote_term(term: str) -> str:
     term = (term or "").strip()
     if not term:
         return ""
-    # Quote anything that is not a simple alphanumeric word, which avoids
-    # GDELT's "illegal character" issues for dashed product names like S-100.
     if re.search(r"[^A-Za-z0-9 ]", term):
         return f'"{term}"'
     if " " in term:
         return f'"{term}"'
     return term
 
+
 def text_has_any(text: str, terms: List[str]) -> bool:
     t = normalize(text)
     return any(normalize(term) in t for term in terms if term)
 
+
+def or_group(terms: List[str]) -> str:
+    cleaned = [quote_term(t) for t in terms if t and t.strip()]
+    cleaned = [t for t in cleaned if t]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    return "(" + " OR ".join(cleaned) + ")"
+
+
 def make_query(cfg: Dict[str, Any], strict: bool = True) -> str:
-    aliases = [quote_term(t) for t in cfg.get("aliases", []) if t and t.strip()]
-    drone_terms = [quote_term(t) for t in COMMON_DRONE_TERMS if t]
-    alias_expr = " OR ".join([t for t in aliases if t])
-    drone_expr = " OR ".join([t for t in drone_terms if t])
+    aliases = cfg.get("aliases", [])
+    alias_expr = or_group(aliases)
+
+    # Keep the API query conservative: company aliases + generic drone terms.
+    # Leave product codes and other tricky terms for local filtering only.
+    drone_expr = or_group(COMMON_DRONE_TERMS)
 
     if strict:
-        # Only OR groups are wrapped. Do not wrap the entire AND expression.
-        return f"({alias_expr}) AND ({drone_expr})"
+        if alias_expr and drone_expr:
+            return f"{alias_expr} AND {drone_expr}"
+        return alias_expr or drone_expr
 
-    return f"({alias_expr})"
+    return alias_expr
 
-def rate_limited_get(session: requests.Session, url: str, params: Dict[str, Any], retries: int = 4) -> requests.Response:
+
+def rate_limited_get(
+    session: requests.Session,
+    url: str,
+    params: Dict[str, Any],
+    retries: int = 4,
+) -> requests.Response:
     global _last_request_at
     backoff = 6.0
 
@@ -82,6 +103,7 @@ def rate_limited_get(session: requests.Session, url: str, params: Dict[str, Any]
 
     raise RuntimeError("GDELT kept rate-limiting the requests after retries.")
 
+
 def fetch_json(session: requests.Session, query: str) -> Dict[str, Any]:
     params = {
         "query": query,
@@ -97,7 +119,10 @@ def fetch_json(session: requests.Session, query: str) -> Dict[str, Any]:
         return response.json()
     except Exception as exc:
         snippet = (response.text or "")[:500]
-        raise RuntimeError(f"Could not parse GDELT JSON. First response chars: {snippet!r}") from exc
+        raise RuntimeError(
+            f"Could not parse GDELT JSON. First response chars: {snippet!r}"
+        ) from exc
+
 
 def extract_items(payload: Any) -> List[Dict[str, Any]]:
     if isinstance(payload, list):
@@ -119,12 +144,14 @@ def extract_items(payload: Any) -> List[Dict[str, Any]]:
             return candidate
     return []
 
+
 def extract_field(item: Dict[str, Any], keys: List[str]) -> str:
     for key in keys:
         value = item.get(key)
         if value:
             return str(value)
     return ""
+
 
 def passes_local_filter(cfg: Dict[str, Any], title: str, summary: str) -> bool:
     text = f"{title} {summary}"
@@ -143,6 +170,7 @@ def passes_local_filter(cfg: Dict[str, Any], title: str, summary: str) -> bool:
             return False
 
     return True
+
 
 def score_article(cfg: Dict[str, Any], title: str, summary: str, published: str) -> int:
     score = 0
@@ -169,6 +197,7 @@ def score_article(cfg: Dict[str, Any], title: str, summary: str, published: str)
 
     return score
 
+
 def dedupe_articles(items: List[Article]) -> List[Article]:
     seen = set()
     deduped = []
@@ -180,9 +209,8 @@ def dedupe_articles(items: List[Article]) -> List[Article]:
         deduped.append(article)
     return deduped
 
+
 def fetch_company_articles(session: requests.Session, cfg: Dict[str, Any]) -> List[Article]:
-    # Use the safer query first: aliases + generic drone terms only.
-    # Keep product codes and other potentially tricky terms for local filtering.
     strict_query = make_query(cfg, strict=True)
     fallback_query = make_query(cfg, strict=False)
 
@@ -227,6 +255,7 @@ def fetch_company_articles(session: requests.Session, cfg: Dict[str, Any]) -> Li
     print(f"[DEBUG] {cfg['name']}: kept {len(articles)} after local filter")
     return articles
 
+
 def make_briefing(articles: List[Article]) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -270,6 +299,7 @@ def make_briefing(articles: List[Article]) -> str:
 
     return "\n".join(lines).strip() + "\n"
 
+
 def main() -> None:
     cfg_path = Path("manufacturers.json")
     companies = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -293,6 +323,7 @@ def main() -> None:
         json.dumps([asdict(a) for a in all_articles], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
 
 if __name__ == "__main__":
     main()
